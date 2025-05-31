@@ -11,21 +11,21 @@ import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { MeetingSchema } from 'schema';
 import { getApi, postApi } from 'services/api';
+import { useDispatch } from 'react-redux';
+import { fetchContactData } from '../../../../redux/slices/contactSlice';
+import { fetchLeadData } from '../../../../redux/slices/leadSlice';
 
 const AddMeeting = (props) => {
-    const { onClose, isOpen, setAction, from, fetchData, view } = props
-    const [leaddata, setLeadData] = useState([])
-    const [contactdata, setContactData] = useState([])
+    const dispatch = useDispatch();
+    const { onClose, isOpen, setAction, from, view, id } = props
     const [isLoding, setIsLoding] = useState(false)
     const [contactModelOpen, setContactModel] = useState(false);
     const [leadModelOpen, setLeadModel] = useState(false);
     const todayTime = new Date().toISOString().split('.')[0];
     const leadData = useSelector((state) => state?.leadData?.data);
-
+    const contactList = useSelector((state) => state?.contactData?.data);
 
     const user = JSON.parse(localStorage.getItem('user'))
-
-    const contactList = useSelector((state) => state?.contactData?.data)
 
 
     const initialValues = {
@@ -43,31 +43,47 @@ const AddMeeting = (props) => {
         initialValues: initialValues,
         validationSchema: MeetingSchema,
         onSubmit: (values, { resetForm }) => {
-            
+            AddData();
         },
     });
     const { errors, touched, values, handleBlur, handleChange, handleSubmit, setFieldValue } = formik
 
     const AddData = async () => {
-
+        try {
+            setIsLoding(true);
+            let response = await postApi("api/meeting/add", values);
+            if (response && response.status === 200) {
+                toast.success("Meeting Added Successfully!");
+                formik.resetForm();
+                setAction(prev => !prev);
+                onClose();
+            } else {
+                toast.error(response.response.data?.error);
+            }
+        } catch (e) {
+            console.log(e);
+        } finally {
+            setIsLoding(false);
+        }
     };
 
     const fetchAllData = async () => {
-        
+        if (contactList?.length === 0 || contactList === undefined) { dispatch(fetchContactData()) }
+        if (leadData?.length === 0 || leadData === undefined) { dispatch(fetchLeadData()) }
     }
 
     useEffect(() => {
-
-    }, [props.id, values.related])
+        fetchAllData();
+    }, []);
 
     const extractLabels = (selectedItems) => {
         return selectedItems.map((item) => item._id);
     };
 
-    const countriesWithEmailAsLabel = (values.related === "Contact" ? contactdata : leaddata)?.map((item) => ({
+    const countriesWithEmailAsLabel = (values.related === "Contact" ? contactList : leadData)?.map((item) => ({
         ...item,
         value: item._id,
-        label: values.related === "Contact" ? `${item.firstName} ${item.lastName}` : item.leadName,
+        label: values.related === "Contact" ? item.fullName : item.leadName,
     }));
 
     return (
@@ -78,9 +94,9 @@ const AddMeeting = (props) => {
                 <ModalCloseButton />
                 <ModalBody overflowY={"auto"} height={"400px"}>
                     {/* Contact Model  */}
-                    <MultiContactModel data={contactdata} isOpen={contactModelOpen} onClose={setContactModel} fieldName='attendes' setFieldValue={setFieldValue} />
+                    <MultiContactModel data={contactList} isOpen={contactModelOpen} onClose={setContactModel} fieldName='attendes' setFieldValue={setFieldValue} />
                     {/* Lead Model  */}
-                    <MultiLeadModel data={leaddata} isOpen={leadModelOpen} onClose={setLeadModel} fieldName='attendesLead' setFieldValue={setFieldValue} />
+                    <MultiLeadModel data={leadData} isOpen={leadModelOpen} onClose={setLeadModel} fieldName='attendesLead' setFieldValue={setFieldValue} />
 
                     <Grid templateColumns="repeat(12, 1fr)" gap={3}>
                         <GridItem colSpan={{ base: 12 }}>
@@ -111,7 +127,7 @@ const AddMeeting = (props) => {
                             </RadioGroup>
                             <Text mb='10px' color={'red'} fontSize='sm'> {errors.related && touched.related && errors.related}</Text>
                         </GridItem>
-                        {(values.related === "Contact" ? (contactdata?.length ?? 0) > 0 : (leaddata?.length ?? 0) > 0) && values.related &&
+                        {(values.related === "Contact" ? (contactList?.length ?? 0) > 0 : (leadData?.length ?? 0) > 0) && values.related &&
 
                             <GridItem colSpan={{ base: 12 }}>
                                 <Flex alignItems={'end'} justifyContent={'space-between'} >
